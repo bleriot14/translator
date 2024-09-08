@@ -1,44 +1,26 @@
-from fastapi import FastAPI, HTTPException
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from fastapi import FastAPI
+import sys
+sys.path.append("..") # Adds higher directory to python modules path.
 from transformers import SeamlessM4Tv2ForTextToText, SeamlessM4TTokenizer, SeamlessM4TFeatureExtractor
 import torch
 import time
-from typing import Optional
 import logging
-from pydantic import BaseModel
+from orm.models import TranslationRequest, Translation
+from fastapi.middleware.cors import CORSMiddleware
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Define SQLModel for Translation
-class Translation(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    original_text: str
-    translated_text: str
-    source_lang: str
-    target_lang: str
-    total_time: float
-    input_prep_time: float
-    translation_time: float
-    decoding_time: float
-    model_load_time: float = Field(default=0.0)  # Add this line
-
-# Define request model
-class TranslationRequest(BaseModel):
-    text: str
-    source_lang: str
-    target_lang: str
-
 # Create FastAPI app
 app = FastAPI()
-
-# Database setup
-DATABASE_URL = "sqlite:///./translation_database.db"
-engine = create_engine(DATABASE_URL)
-
-# Create tables
-SQLModel.metadata.create_all(engine)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Tüm originlere izin ver
+    allow_credentials=True,
+    allow_methods=["*"],  # Tüm HTTP metodlarına izin ver
+    allow_headers=["*"],  # Tüm headerlara izin ver
+)
 
 # Load model and tokenizer
 MODEL_PATH = "models/seamless-m4t-v2-large"
@@ -46,17 +28,11 @@ logger.info(f"Loading model from {MODEL_PATH}")
 
 try:
     model = SeamlessM4Tv2ForTextToText.from_pretrained(MODEL_PATH)
-    logger.info("Model loaded successfully")
-except Exception as e:
-    logger.error(f"Error loading model: {str(e)}")
-    raise
-
-try:
     tokenizer = SeamlessM4TTokenizer.from_pretrained(MODEL_PATH)
     feature_extractor = SeamlessM4TFeatureExtractor.from_pretrained(MODEL_PATH)
-    logger.info("Tokenizer and Feature Extractor loaded successfully")
+    logger.info("Model, Tokenizer, and Feature Extractor loaded successfully")
 except Exception as e:
-    logger.error(f"Error loading tokenizer or feature extractor: {str(e)}")
+    logger.error(f"Error loading model components: {str(e)}")
     raise
 
 device = torch.device("cpu")
@@ -94,23 +70,11 @@ def translate(request: TranslationRequest):
         input_prep_time=input_prep_time,
         translation_time=translation_time,
         decoding_time=decoding_time,
-        model_load_time=0.0  # Add this line, or calculate the actual model load time if available
+        model_load_time=0.0
     )
-
-    # Save to database
-    with Session(engine) as session:
-        session.add(translation)
-        session.commit()
-        session.refresh(translation)
 
     return translation
 
-@app.get("/translations/", response_model=list[Translation])
-def get_translations():
-    with Session(engine) as session:
-        translations = session.exec(select(Translation)).all()
-        return translations
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

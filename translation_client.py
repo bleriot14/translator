@@ -1,14 +1,14 @@
 import requests
 import json
 
-def translate_text(text, source_lang, target_lang, server_url="http://localhost:8000"):
+def translate_text(text, source_lang, target_lang, server_url="http://localhost:8080"):
     """
     Sends a POST request to the translation server and returns the result.
     
     :param text: The text to translate
     :param source_lang: The source language code
     :param target_lang: The target language code
-    :param server_url: The URL of the translation server (default: http://localhost:8000)
+    :param server_url: The URL of the translation server (default: http://localhost:8080)
     :return: A dictionary containing the translation result and timing information
     """
     

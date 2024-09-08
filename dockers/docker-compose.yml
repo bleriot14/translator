@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  backend:
+    image: python:3.11-slim
+    command: >
+      sh -c "
+        apt-get update && apt-get install -y libpq-dev gcc &&
+        python -m venv /app/backend/venv &&
+        . /app/backend/venv/bin/activate &&
+        pip install --upgrade pip &&
+        pip install -r /app/backend/requirements.txt &&
+        cd /app/backend &&
+        python wait-for-db.py &&
+        python backend.py
+      "
+
+    volumes:
+      - ../app/backend:/app/backend
+      - ../app/orm:/app/orm
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/translations
+    depends_on:
+      - db
+
+  aiend:
+    image: python:3.11-slim
+    command: >
+      sh -c "
+        python -m venv /app/aiend/venv &&
+        . /app/aiend/venv/bin/activate &&
+        pip install -r /app/aiend/requirements.txt &&
+        cd /app/aiend &&
+        python aiend.py
+      "
+    volumes:
+      - ../app/aiend:/app/aiend
+      - ../app/orm:/app/orm
+
+    ports:
+      - "8001:8001"
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=translations
+    volumes:
+      - ../db/data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
